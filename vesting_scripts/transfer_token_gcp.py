@@ -1,4 +1,3 @@
-import os
 import ecdsa
 import hashlib
 import requests
@@ -109,7 +108,7 @@ def sign(payload, project):
     return signature
 
 ### Core logic
-def transfer_token_gcp(chain, token_address, vault_id, destination, amount, note):
+def transfer_token_gcp(chain, token_ticker, vault_id, destination, amount, note):
     """
     Execute an ERC20 token transfer using Fordefi API
     
@@ -136,7 +135,7 @@ def transfer_token_gcp(chain, token_address, vault_id, destination, amount, note
         destination=destination,
         custom_note=note,
         value=amount,
-        token=token_address
+        token=token_ticker
     )
     request_body = json.dumps(request_json)
     timestamp = datetime.datetime.now().strftime("%s")

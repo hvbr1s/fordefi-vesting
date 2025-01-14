@@ -14,7 +14,7 @@ def load_vesting_config():
     """
     return {
         "cliff_days": 1,       # e.g. starts tomorrow
-        "vesting_time": "06:00" # 24-hour format (CET in this example)
+        "vesting_time": "06:00" # 24-hour format
     }
 
 
@@ -23,7 +23,7 @@ def compute_first_vesting_date(cliff_days: int) -> datetime:
     Returns the base date/time for the first vest in UTC.
     If the user sets cliff_days=1, we push the first vest out by 1 day.
     """
-    now = datetime.now(datetime.UTC)
+    now = datetime.now(pytz.UTC)
     return now + timedelta(days=cliff_days)
 
 
@@ -37,11 +37,11 @@ def execute_daily_vest():
 
     # Handle BNB transfer
     try:
-        vest_bnb = transfer_native_gcp(
+        transfer_native_gcp(
             chain="bsc",
             vault_id="652a2334-a673-4851-ad86-627781689592",
             destination="0xF659feEE62120Ce669A5C45Eb6616319D552dD93",
-            value="0.0001",
+            value="0.00001",
             note="Daily vesting"
         )
         print("✅ BNB vesting completed successfully")
@@ -50,12 +50,12 @@ def execute_daily_vest():
 
     # Handle USDT transfer
     try:
-        vest_usdt = transfer_token_gcp(
+        transfer_token_gcp(
             chain="bsc",
-            token_address="0xSomeTokenAddress",
+            token_ticker="usdt",
             vault_id="652a2334-a673-4851-ad86-627781689592",
             destination="0xF659feEE62120Ce669A5C45Eb6616319D552dD93",
-            amount="123.45",
+            amount="0.000001",
             note="Daily vesting"
         )
         print("✅ USDT vesting completed successfully")
@@ -79,8 +79,7 @@ def schedule_vesting():
     
     # Convert that date from UTC to CET
     cet = pytz.timezone("CET")
-    localized_cliff_utc = pytz.utc.localize(first_vest_datetime_utc)
-    cliff_in_cet = localized_cliff_utc.astimezone(cet)
+    cliff_in_cet = first_vest_datetime_utc.astimezone(cet)
     
     # Apply the desired vesting hour + minute in CET
     cliff_in_cet = cliff_in_cet.replace(
@@ -101,7 +100,7 @@ def schedule_vesting():
     
     # Use a one-shot "launcher" job to wait until first_run_utc, then schedule daily
     def job_launcher():
-        now_utc = datetime.now(datetime.UTC)
+        now_utc = datetime.now(pytz.UTC)
         if now_utc >= first_run_utc:
             # The time has arrived or passed — do the vest now
             execute_daily_vest()
