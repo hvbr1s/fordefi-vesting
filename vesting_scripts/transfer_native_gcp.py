@@ -5,7 +5,6 @@ import requests
 import base64
 import json
 import datetime
-from decimal import Decimal
 from google.cloud import secretmanager
 
 def access_secret_version(project_id, secret_id, version_id):

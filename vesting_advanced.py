@@ -9,39 +9,65 @@ from vesting_scripts.transfer_token_gcp import transfer_token_gcp
 def load_vesting_configs():
     """
     Returns a list of per-asset configs, each containing:
-      - type: 'native' or 'erc20' (so we know which transfer function to call)
+      - vault_id
+      - asset: the asset ticker
+      - ecosystem: evm, solana, etc
+      - type: 'native' or 'erc20'
       - chain: e.g. 'bsc' or 'ethereum'
-      - vault_id: Your ForDefi vault ID
       - destination: The address where tokens are sent
-      - note: A short note for the transaction
+      - note: An optional note
       - cliff_days: How many days until the first vest
-      - vesting_time: "HH:MM" (local to CET in this example)
-      - Additional fields for 'value' (native) or 'amount'/'asset' (ERC20).
+      - vesting_time: "HH:MM" (24:00 format)
+      - value: string representation of amount to send
     """
-    return [
-        {
-            "asset": "BNB",
-            "type": "native",
-            "chain": "bsc",
-            "vault_id": "652a2334-a673-4851-ad86-627781689592",
-            "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93",
-            "value": "0.00001",           # For native BNB
-            "note": "Daily BNB vesting",
-            "cliff_days": 1,
-            "vesting_time": "06:00"       # 6 AM CET
-        },
-        {
-            "asset": "USDT",
-            "type": "erc20",
-            "chain": "bsc",
-            "vault_id": "652a2334-a673-4851-ad86-627781689592",
-            "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93",
-            "amount": "0.00001",          # USDT amount
-            "note": "Daily USDT vesting",
-            "cliff_days": 7,
-            "vesting_time": "12:00"      # 12 PM CET
-        }
-    ]
+
+    vault_configs = {
+        "652a2334-a673-4851-ad86-627781689592": [ # Vault ID
+            {
+                "asset": "BNB",
+                "ecosystem": "evm",
+                "type": "native",
+                "chain": "bsc",
+                "value": "0.000001",
+                "note": "Daily BNB vesting",
+                "cliff_days": 0,
+                "vesting_time": "18:00",
+                "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+            },
+            {
+                "asset": "USDT",
+                "ecosystem": "evm",
+                "type": "erc20",
+                "chain": "bsc",
+                "value": "0.00001",
+                "note": "Daily USDT vesting",
+                "cliff_days": 0,
+                "vesting_time": "19:00",
+                "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+            }
+        ],
+        # Add more vault IDs here if needed
+    }
+
+    configs = []
+    # Convert these dict entries into a list of full config objects
+    for vault_id, token_list in vault_configs.items():
+        for data in token_list:
+            cfg = {
+                "vault_id": vault_id,
+                "asset": data["asset"],
+                "ecosystem": data["ecosystem"],
+                "type": data["type"],
+                "chain": data["chain"],
+                "destination": data["destination"],
+                "value": data["value"],
+                "note": data["note"],
+                "cliff_days": data["cliff_days"],
+                "vesting_time": data["vesting_time"]
+            }
+            configs.append(cfg)
+
+    return configs
 
 
 def compute_first_vesting_date(cliff_days: int) -> datetime:
@@ -59,9 +85,9 @@ def execute_vest_for_asset(cfg: dict):
     If 'type' is 'native', use transfer_native_gcp.
     If 'type' is 'erc20', use transfer_token_gcp.
     """
-    print(f"\n🔔 It's vesting time for {cfg['asset']}!")
+    print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
-        if cfg["type"] == "native":
+        if cfg["type"] == "native" and cfg["ecosystem"] == "evm":
             # Send native token (e.g., BNB or ETH)
             transfer_native_gcp(
                 chain=cfg["chain"],
@@ -70,16 +96,24 @@ def execute_vest_for_asset(cfg: dict):
                 value=cfg["value"],
                 note=cfg["note"]
             )
-        else:
-            # Send ERC20 token
-            # NOTE: If your transfer_token_gcp takes 'token_address' vs. 'token_ticker',
-            # adjust accordingly. Here we assume 'token_ticker=cfg["asset"].lower()'
+        elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
+            # Send ERC20 token (e.g. USDT)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
                 vault_id=cfg["vault_id"],
                 destination=cfg["destination"],
-                amount=cfg["amount"],
+                value=cfg["value"],
+                note=cfg["note"]
+            )
+        else:
+            # Fallback or handle other ecosystems if needed
+            transfer_token_gcp(
+                chain=cfg["chain"],
+                token_ticker=cfg["asset"].lower(),
+                vault_id=cfg["vault_id"],
+                destination=cfg["destination"],
+                value=cfg["value"],
                 note=cfg["note"]
             )
 
@@ -117,7 +151,7 @@ def schedule_vesting_for_asset(cfg: dict):
 
     # Convert back to UTC for scheduling
     first_run_utc = cliff_in_cet.astimezone(pytz.UTC)
-    print(f"⏰ {cfg['asset']} first vest scheduled for: {first_run_utc} UTC")
+    print(f"⏰ {cfg['asset']} (Vault ID: {cfg['vault_id']}) first vest scheduled for: {first_run_utc} UTC")
 
     def job_launcher():
         # Check if we've reached/passed the first vest time in UTC
