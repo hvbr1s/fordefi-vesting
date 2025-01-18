@@ -1,69 +1,84 @@
+import json
 import schedule
 import time
 import pytz
+import firebase_admin
 from datetime import datetime, timedelta
 from vesting_scripts.transfer_native_gcp import transfer_native_gcp
 from vesting_scripts.transfer_token_gcp import transfer_token_gcp
+from firebase_admin import firestore
 
+# -------------------------------------------------
+# UTILITY
+# This script lets you implement a vesting schedule for assets custodied in Fordefi Vaults 
+# Each asset config is stored in Firebase for easier management
+# -------------------------------------------------
 
 def load_vesting_configs():
     """
-    Returns a list of per-asset configs, each containing:
-      - vault_id
-      - asset: the asset ticker
-      - ecosystem: evm, solana, etc
-      - type: 'native' or 'erc20'
-      - chain: e.g. 'bsc' or 'ethereum'
-      - destination: The address where tokens are sent
-      - note: An optional note
-      - cliff_days: How many days until the first vest
-      - vesting_time: "HH:MM" (24:00 format)
-      - value: string representation of amount to send
-    """
-
-    vault_configs = {
-        "652a2334-a673-4851-ad86-627781689592": [ # Vault ID
+    This function fetches vesting configurations from a Firestore collection named 'vesting_configs'.
+    
+    Firestore DB Structure:
+    ---------------------------------------
+    Collection: vesting_configs
+      Document ID: 652a2334-a673-4851-ad86-627781689592  <-- That's your Vault ID
+        {
+          "tokens": [
             {
-                "asset": "BNB",
-                "ecosystem": "evm",
-                "type": "native",
-                "chain": "bsc",
-                "value": "0.000001",
-                "note": "Daily BNB vesting",
-                "cliff_days": 0,
-                "vesting_time": "18:00",
-                "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+              "asset": "BNB",
+              "ecosystem": "evm",
+              "type": "native",
+              "chain": "bsc",
+              "value": "0.000001",
+              "note": "Daily BNB vesting",
+              "cliff_days": 0,
+              "vesting_time": "13:00",
+              "destination": "0x..."
             },
             {
-                "asset": "USDT",
-                "ecosystem": "evm",
-                "type": "erc20",
-                "chain": "bsc",
-                "value": "0.00001",
-                "note": "Daily USDT vesting",
-                "cliff_days": 0,
-                "vesting_time": "19:00",
-                "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+              "asset": "USDT",
+              "ecosystem": "evm",
+              "type": "erc20",
+              "chain": "bsc",
+              "value": "0.00001",
+              "note": "Daily USDT vesting",
+              "cliff_days": 0,
+              "vesting_time": "19:00",
+              "destination": "0x..."
             }
-        ],
-        # Add more vault IDs here if needed
-    }
+          ]
+        }
 
+    Returns a list of config dictionaries, where each config has:
+      - vault_id
+      - asset, ecosystem, type, chain, destination, value, note
+      - cliff_days
+      - vesting_time
+    """
+    db = firestore.client()
     configs = []
-    # Convert dict entries into a list of full config objects
-    for vault_id, token_list in vault_configs.items():
-        for data in token_list:
+
+    # Retrieve all documents from the 'vesting_configs' collection on Firebase
+    docs = db.collection("vesting_configs").stream()
+
+    for doc in docs:
+        doc_data = doc.to_dict()
+        vault_id = doc.id
+        tokens = doc_data.get("tokens", [])
+
+        # Each doc can contain an array of tokens
+        for token_info in tokens:
             cfg = {
                 "vault_id": vault_id,
-                "asset": data["asset"],
-                "ecosystem": data["ecosystem"],
-                "type": data["type"],
-                "chain": data["chain"],
-                "destination": data["destination"],
-                "value": data["value"],
-                "note": data["note"],
-                "cliff_days": data["cliff_days"],
-                "vesting_time": data["vesting_time"]
+                "asset":        token_info["asset"],
+                "ecosystem":    token_info["ecosystem"],
+                "type":         token_info["type"],
+                "chain":        token_info["chain"],
+                "destination":  token_info["destination"],
+                "value":        token_info["value"],
+                "note":         token_info["note"],
+                "cliff_days":   token_info["cliff_days"],
+                "vesting_time": token_info["vesting_time"]
             }
             configs.append(cfg)
 
@@ -88,7 +103,7 @@ def execute_vest_for_asset(cfg: dict):
     print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
         if cfg["type"] == "native" and cfg["ecosystem"] == "evm":
-            # Send native token (BNB or ETH)
+            # Send native EVM token (BNB, ETH)
             transfer_native_gcp(
                 chain=cfg["chain"],
                 vault_id=cfg["vault_id"],
@@ -97,7 +112,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
-            # Send ERC20 token (USDT)
+            # Send ERC20 token (USDT, USDC, etc)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -107,13 +122,13 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         else:
-            # Fallback or handle other ecosystems if needed
+            # Fallback or implement other ecosystems (Solana, Sui, etc)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
                 vault_id=cfg["vault_id"],
                 destination=cfg["destination"],
-                value=cfg["value"],
+                amount=cfg["value"],
                 note=cfg["note"]
             )
 
@@ -131,7 +146,7 @@ def schedule_vesting_for_asset(cfg: dict):
     vesting_time = cfg["vesting_time"] 
     vest_hour, vest_minute = map(int, vesting_time.split(":"))
 
-    # Compute the base vest date in UTC
+    # Compute the base vest date in UTC (we use UTC for reliability and easier debugging)
     first_vest_datetime_utc = compute_first_vesting_date(cliff_days)
 
     # Convert that to CET and override hour/minute
@@ -168,14 +183,19 @@ def schedule_vesting_for_asset(cfg: dict):
 
 
 def main():
-    # Load multiple per-asset configs
+
+    # 1) Init Firebase
+    firebase_admin.initialize_app() 
+    print("Firebase initialized successfully!")
+
+    # 2) Load token configs from Firestore
     configs = load_vesting_configs()
 
-    # For each asset, schedule its vest
+    # 3) For token asset, schedule its vest
     for cfg in configs:
         schedule_vesting_for_asset(cfg)
 
-    # Keep the script alive
+    # 4) Keep the script alive
     while True:
         schedule.run_pending()
         time.sleep(10)
