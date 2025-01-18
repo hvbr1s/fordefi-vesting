@@ -27,7 +27,7 @@ def load_vesting_configs():
               "note": "Daily BNB vesting",
               "cliff_days": 0,
               "vesting_time": "13:00",
-              "destination": "a_destination_address"
+              "destination": "0x...."
             },
             {
               "asset": "USDT",
@@ -38,7 +38,7 @@ def load_vesting_configs():
               "note": "Daily USDT vesting",
               "cliff_days": 0,
               "vesting_time": "19:00",
-              "destination": "a_destination_address"
+              "destination": "0x...."
             }
           ]
         }
@@ -49,18 +49,18 @@ def load_vesting_configs():
       - cliff_days
       - vesting_time
     """
-    db = firestore.client()
+    db = firestore.client() # we want the default firestore
     configs = []
 
-    # Retrieve all documents from the 'vesting_configs' collection
+    # Retrieve all docs (vaults) from the 'vesting_configs' collection
     docs = db.collection("vesting_configs").stream()
 
     for doc in docs:
         doc_data = doc.to_dict()
-        vault_id = doc.id  # Use the document ID in Firebase as the vault_id
+        vault_id = doc.id 
         tokens = doc_data.get("tokens", [])
 
-        # Each doc can contain an array of tokens
+        # Each doc (aka Vault) can contain an array of token mappings
         for token_info in tokens:
             cfg = {
                 "vault_id": vault_id,
@@ -91,13 +91,13 @@ def compute_first_vesting_date(cliff_days: int) -> datetime:
 def execute_vest_for_asset(cfg: dict):
     """
     Execute a single vest for the given asset/config.
-    If 'type' is 'native', use transfer_native_gcp.
-    If 'type' is 'erc20', use transfer_token_gcp.
+    If 'type' is 'native' -> use transfer_native_gcp.
+    If 'type' is 'erc20' -> use transfer_token_gcp.
     """
     print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
         if cfg["type"] == "native" and cfg["ecosystem"] == "evm":
-            # Send native token (e.g., BNB or ETH)
+            # Send native token (BNB, ETH, etc)
             transfer_native_gcp(
                 chain=cfg["chain"],
                 vault_id=cfg["vault_id"],
@@ -106,7 +106,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
-            # Send ERC20 token (e.g. USDT)
+            # Send ERC20 token (USDT, etc)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -116,7 +116,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         else:
-            # Fallback or handle other ecosystems if needed
+            # Fallback or handle other ecosystems -> to be implemented when adding non EVM chains
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -182,10 +182,10 @@ def main():
     firebase_admin.initialize_app() 
     print("Firebase initialized successfully!")
 
-    # 2) Load asset configs from Firebase
+    # 2) Load token configs from Firebase
     configs = load_vesting_configs()
 
-    # 3) For each asset, schedule its vest
+    # 3) For each token, schedule its vest
     for cfg in configs:
         schedule_vesting_for_asset(cfg)
 
