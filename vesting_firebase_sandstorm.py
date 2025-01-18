@@ -6,15 +6,7 @@ import firebase_admin
 from datetime import datetime, timedelta
 from vesting_scripts.transfer_native_gcp import transfer_native_gcp
 from vesting_scripts.transfer_token_gcp import transfer_token_gcp
-from firebase_admin import credentials, firestore
-from google.cloud import secretmanager
-
-def access_secret_version(project_id, secret_id, version_id):
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-    response = client.access_secret_version(request={"name": name})
-    return response.payload.data.decode('UTF-8')
-
+from firebase_admin import firestore
 
 def load_vesting_configs():
     """
@@ -34,8 +26,8 @@ def load_vesting_configs():
               "value": "0.000001",
               "note": "Daily BNB vesting",
               "cliff_days": 0,
-              "vesting_time": "18:00",
-              "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+              "vesting_time": "13:00",
+              "destination": "a_destination_address"
             },
             {
               "asset": "USDT",
@@ -46,7 +38,7 @@ def load_vesting_configs():
               "note": "Daily USDT vesting",
               "cliff_days": 0,
               "vesting_time": "19:00",
-              "destination": "0xF659feEE62120Ce669A5C45Eb6616319D552dD93"
+              "destination": "a_destination_address"
             }
           ]
         }
@@ -186,28 +178,18 @@ def schedule_vesting_for_asset(cfg: dict):
 
 def main():
 
-    # 1) Retrieve the secret JSON from GCP Secret Manager
-    project_id = "inspired-brand-447513-i8" # change
-    secret_id = "FIREBASE_PRIVATE_KEY" # change to your GCP secret's name
-    version_id = "latest"
-    service_account_json_str = access_secret_version(project_id, secret_id, version_id)
-
-    # 2) Parse the JSON secret into a dict
-    service_account_info = json.loads(service_account_json_str)
-
-    # 3) Initialize the Firebase Admin SDK
-    cred = credentials.Certificate(service_account_info)
-    firebase_admin.initialize_app(cred)
+    # 1) Init Firebase
+    firebase_admin.initialize_app() 
     print("Firebase initialized successfully!")
 
-    # 4) Load asset configs from Firebase
+    # 2) Load asset configs from Firebase
     configs = load_vesting_configs()
 
-    # 5) For each asset, schedule its vest
+    # 3) For each asset, schedule its vest
     for cfg in configs:
         schedule_vesting_for_asset(cfg)
 
-    # 6) Keep the script alive
+    # 4) Keep the script alive
     while True:
         schedule.run_pending()
         time.sleep(10)
