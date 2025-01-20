@@ -1,4 +1,3 @@
-import json
 import schedule
 import time
 import pytz
@@ -68,6 +67,8 @@ def load_vesting_configs():
 
         # Each doc can contain an array of tokens
         for token_info in tokens:
+            # NOTE -> decided against putting the smart contract address in that DB because 
+            # the risk of mixing destination address and contract address are too great imo
             cfg = {
                 "vault_id": vault_id,
                 "asset":        token_info["asset"],
@@ -122,7 +123,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         else:
-            # Fallback or implement other ecosystems (Solana, Sui, etc) - for now we have a place holder
+            # Fallback or implement other ecosystems (Solana, Sui, etc) - for now we have a placeholder
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -198,7 +199,7 @@ def main():
     # 4) Keep the script alive
     while True:
         schedule.run_pending()
-        time.sleep(10)
+        time.sleep(60)
 
 
 if __name__ == "__main__":

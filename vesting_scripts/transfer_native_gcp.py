@@ -2,6 +2,7 @@ import requests
 import base64
 import json
 import datetime
+from decimal import Decimal
 from signer.api_signer import sign
 from secret_manager.gcp_secret_manager import access_secret
 
@@ -36,7 +37,7 @@ def broadcast_tx(path, access_token, signature, timestamp, request_body):
 
 def evm_tx_native(evm_chain, vault_id, destination, custom_note, value):
 
-    value_in_wei = str(int(float(value) * 10**18))
+    value_in_wei = str(int(Decimal(value) * Decimal('1000000000000000000')))
     print(f"⚙️ Preparing tx for {value}!")
 
     """
@@ -73,7 +74,6 @@ def evm_tx_native(evm_chain, vault_id, destination, custom_note, value):
     return request_json
 
 ### Core logic
-
 def transfer_native_gcp(chain, vault_id, destination, value, note):
     """
     Execute a native token transfer (BNB/ETH) using Fordefi API
