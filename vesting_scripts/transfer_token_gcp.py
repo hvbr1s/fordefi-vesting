@@ -38,20 +38,22 @@ def broadcast_tx(path, access_token, signature, timestamp, request_body):
 
 def evm_tx_tokens(evm_chain, vault_id, destination, custom_note, value, token):
 
+    sanitized_token_name = token.lower().strip()
+
     if evm_chain == "bsc":
-        if token == "usdt":
+        if sanitized_token_name == "usdt":
             contract_address = "0x55d398326f99059fF775485246999027B3197955"
             value = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
         else:
             raise ValueError(f"Token '{token}' is not supported for chain '{evm_chain}'") 
     elif evm_chain == "ethereum":
-        if token == "usdt":
+        if sanitized_token_name == "usdt":
             contract_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
             value = str(int(Decimal(value) * Decimal('1000000')))  # 6 decimals
-        elif token == "pepe":
+        elif sanitized_token_name == "pepe":
             contract_address = "0x6982508145454Ce325dDbE47a25d4ec3d2311933"
             value = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
-        elif token == "basedai":
+        elif sanitized_token_name == "basedai":
             contract_address = "0x44971ABF0251958492FeE97dA3e5C5adA88B9185"
             value = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
         else:
