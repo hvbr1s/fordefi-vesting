@@ -1,20 +1,13 @@
-import ecdsa
-import hashlib
 import requests
 import base64
 import json
 import datetime
 from decimal import Decimal
-from google.cloud import secretmanager
+from signer.api_signer import sign
+from secret_manager.gcp_secret_manager import access_secret
 
-def access_secret_version(project_id, secret_id, version_id):
-    client = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-    response = client.access_secret_version(request={"name": name})
-    return response.payload.data.decode('UTF-8')
 
 ### FUNCTIONS
-
 def broadcast_tx(path, access_token, signature, timestamp, request_body):
 
     try:
@@ -97,19 +90,6 @@ def evm_tx_tokens(evm_chain, vault_id, destination, custom_note, value, token):
 
     return request_json
 
-
-def sign(payload, project):
-
-    ## GOOGLE CLOUD USE
-    pem_content = access_secret_version(project, 'PRIVATE_KEY_FILE', 'latest') # CHANGE
-    signing_key = ecdsa.SigningKey.from_pem(pem_content)
-
-    signature = signing_key.sign(
-        data=payload.encode(), hashfunc=hashlib.sha256, sigencode=ecdsa.util.sigencode_der
-    )
-
-    return signature
-
 ### Core logic
 def transfer_token_gcp(chain, token_ticker, vault_id, destination, amount, note):
     """
@@ -128,7 +108,8 @@ def transfer_token_gcp(chain, token_ticker, vault_id, destination, amount, note)
     """
     # Set config
     GCP_PROJECT_ID = 'inspired-brand-447513-i8'
-    USER_API_TOKEN = access_secret_version(GCP_PROJECT_ID, 'USER_API_TOKEN', 'latest')
+    FORDEFI_API_USER_TOKEN = 'USER_API_TOKEN'
+    USER_API_TOKEN = access_secret(GCP_PROJECT_ID, FORDEFI_API_USER_TOKEN, 'latest')
     path = "/api/v1/transactions"
 
     # Building transaction
