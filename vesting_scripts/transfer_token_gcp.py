@@ -58,6 +58,9 @@ def evm_tx_tokens(evm_chain, vault_id, destination, custom_note, value, token):
         elif token == "pepe":
             contract_address = "0x6982508145454Ce325dDbE47a25d4ec3d2311933"
             value = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
+        elif token == "basedai":
+            contract_address = "0x44971ABF0251958492FeE97dA3e5C5adA88B9185"
+            value = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
         else:
             raise ValueError(f"Token '{token}' is not supported for chain '{evm_chain}'") 
     else:
