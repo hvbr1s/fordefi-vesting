@@ -112,7 +112,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
-            # Send ERC20 token (USDT, USDC, etc)
+            # Send ERC20 token (USDT, USDC, PEPE, BASEDAI, etc)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -122,7 +122,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         else:
-            # Fallback or implement other ecosystems (Solana, Sui, etc)
+            # Fallback or implement other ecosystems (Solana, Sui, etc) - for now we have a place holder
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
