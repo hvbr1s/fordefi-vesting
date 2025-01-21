@@ -15,62 +15,20 @@ from firebase_admin import firestore
 
 def load_vesting_configs():
     """
-    This function fetches vesting configurations from a Firestore collection named 'vesting_configs'.
-    
-    Firestore DB Structure:
-    ---------------------------------------
-    Collection: vesting_configs
-      Document ID: 652a2334-a673-4851-ad86-627781689592  <-- That's your Vault ID
-        {
-          "tokens": [
-            {
-              "asset": "BNB",
-              "ecosystem": "evm",
-              "type": "native",
-              "chain": "bsc",
-              "value": "0.000001",
-              "note": "Daily BNB vesting",
-              "cliff_days": 0,
-              "vesting_time": "13:00",
-              "destination": "0x..."
-            },
-            {
-              "asset": "USDT",
-              "ecosystem": "evm",
-              "type": "erc20",
-              "chain": "bsc",
-              "value": "0.00001",
-              "note": "Daily USDT vesting",
-              "cliff_days": 0,
-              "vesting_time": "19:00",
-              "destination": "0x..."
-            }
-          ]
-        }
-
-    Returns a list of config dictionaries, where each config has:
-      - vault_id
-      - asset, ecosystem, type, chain, destination, value, note
-      - cliff_days
-      - vesting_time
+    Fetches vesting configurations from a Firestore collection named 'vesting_configs'.
+    Returns a list of config dictionaries.
     """
     db = firestore.client()
     configs = []
 
-    # Retrieve all documents from the 'vesting_configs' collection on Firebase
     docs = db.collection("vesting_configs").stream()
-
     for doc in docs:
         doc_data = doc.to_dict()
         vault_id = doc.id
         tokens = doc_data.get("tokens", [])
-
-        # Each doc can contain an array of tokens
         for token_info in tokens:
-            # NOTE -> decided against putting the smart contract address in that DB because 
-            # the risk of mixing destination address and contract address are too great imo
             cfg = {
-                "vault_id": vault_id,
+                "vault_id":     vault_id,
                 "asset":        token_info["asset"],
                 "ecosystem":    token_info["ecosystem"],
                 "type":         token_info["type"],
@@ -98,13 +56,11 @@ def compute_first_vesting_date(cliff_days: int) -> datetime:
 def execute_vest_for_asset(cfg: dict):
     """
     Execute a single vest for the given asset/config.
-    If 'type' is 'native', use transfer_native_gcp.
-    If 'type' is 'erc20', use transfer_token_gcp.
     """
     print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
         if cfg["type"] == "native" and cfg["ecosystem"] == "evm":
-            # Send native EVM token (BNB, ETH)
+            # Send native EVM token (e.g., BNB, ETH)
             transfer_native_gcp(
                 chain=cfg["chain"],
                 vault_id=cfg["vault_id"],
@@ -113,7 +69,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
-            # Send ERC20 token (USDT, USDC, PEPE, BASEDAI, etc)
+            # Send ERC20 token (USDT, USDC, etc.)
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -123,7 +79,7 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
         else:
-            # Fallback or implement other ecosystems (Solana, Sui, etc) - for now we have a placeholder
+            # Fallback or other ecosystems
             transfer_token_gcp(
                 chain=cfg["chain"],
                 token_ticker=cfg["asset"].lower(),
@@ -133,21 +89,22 @@ def execute_vest_for_asset(cfg: dict):
                 note=cfg["note"]
             )
 
-        print(f"✅ {cfg['asset']} vesting completed successfully")
+        print(f"✅ {cfg['asset']} vesting completed successfully.")
     except Exception as e:
         print(f"❌ Error during {cfg['asset']} vesting: {str(e)}")
 
 
-def schedule_vesting_for_asset(cfg: dict):
+def schedule_vesting_for_asset(cfg: dict, tag: str = "vesting"):
     """
     Computes the date/time for the first vest in CET, applies cliff_days + vesting_time,
     then sets up a 'launcher' job that schedules a daily vest for this asset.
+    The extra 'tag' param lets us group these jobs so we can clear them later if needed.
     """
     cliff_days = cfg["cliff_days"]
     vesting_time = cfg["vesting_time"] 
     vest_hour, vest_minute = map(int, vesting_time.split(":"))
 
-    # Compute the base vest date in UTC (we use UTC for reliability and easier debugging)
+    # Compute the base vest date in UTC
     first_vest_datetime_utc = compute_first_vesting_date(cliff_days)
 
     # Convert that to CET and override hour/minute
@@ -170,31 +127,46 @@ def schedule_vesting_for_asset(cfg: dict):
     print(f"⏰ {cfg['asset']} (Vault ID: {cfg['vault_id']}) first vest scheduled for: {first_run_utc} UTC")
 
     def job_launcher():
-        # Check if we've reached/passed the first vest time in UTC
         now_utc = datetime.now(pytz.UTC)
         if now_utc >= first_run_utc:
-            # Do the vest now
+            # Vest now
             execute_vest_for_asset(cfg)
             # Then schedule to repeat every 24 hours
-            schedule.every(24).hours.do(execute_vest_for_asset, cfg)
-            return schedule.CancelJob  # so this launcher job doesn't keep repeating
+            schedule.every(24).hours.do(execute_vest_for_asset, cfg).tag(tag)
+            return schedule.CancelJob
 
-    # Check every minute if it's time to launch this asset's vest
-    schedule.every(1).minutes.do(job_launcher)
+    # Check every minute if it's time to run; group them with .tag(tag)
+    schedule.every(1).minutes.do(job_launcher).tag(tag)
+
+
+def refresh_vesting_schedules():
+    """
+    Clears out existing vesting jobs, reloads configs, and re-schedules them.
+    We call this at midnight every day so new config entries are picked up.
+    """
+    print("\n--- Refreshing vesting schedules from Firestore ---")
+    # 1) Clear old vesting jobs (tag='vesting')
+    schedule.clear('vesting')
+
+    # 2) Load updated configs
+    configs = load_vesting_configs()
+    print(f"Loaded {len(configs)} vesting configs.")
+
+    # 3) Re-schedule tasks for each config
+    for cfg in configs:
+        schedule_vesting_for_asset(cfg, tag="vesting")
 
 
 def main():
-
     # 1) Init Firebase
-    firebase_admin.initialize_app() 
+    firebase_admin.initialize_app()
     print("Firebase initialized successfully!")
 
-    # 2) Load token configs from Firestore
-    configs = load_vesting_configs()
+    # 2) Immediately do an initial refresh (so we have tasks right away)
+    refresh_vesting_schedules()
 
-    # 3) For token asset, schedule its vest
-    for cfg in configs:
-        schedule_vesting_for_asset(cfg)
+    # 3) Also schedule a daily refresh at midnight (00:00)
+    schedule.every().day.at("00:00").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:

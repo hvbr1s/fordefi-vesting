@@ -7,6 +7,7 @@ wheels/
 *.egg-info
 uv.lock
 pyproject.toml
+.DS_Store
 
 # Virtual environments
 .venv
