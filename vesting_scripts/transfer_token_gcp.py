@@ -47,6 +47,9 @@ def evm_tx_tokens(evm_chain, vault_id, destination, custom_note, value, token):
         if sanitized_token_name == "usdt":
             contract_address = "0x55d398326f99059fF775485246999027B3197955"
             value = value_eighteen_decimal_tokens
+        elif sanitized_token_name == "btcb":
+            contract_address = "0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c"
+            value = value_eighteen_decimal_tokens
         else:
             raise ValueError(f"Token '{token}' is not supported for chain '{evm_chain}'") 
     elif evm_chain == "ethereum":
