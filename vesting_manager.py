@@ -80,7 +80,7 @@ def execute_vest_for_asset(cfg: dict):
             )
         elif cfg["value"] == "0":
             # If the vesting amount is zero, print so
-            print(f"❌ Vesting amount in Firebase is 0!")
+            print(f'❌ Vesting amount for {cfg["asset"]} in Firebase is 0!')
 
         else:
             raise ValueError(f"Unsupported configuration: type={cfg['type']}, ecosystem={cfg['ecosystem']}")
@@ -161,8 +161,8 @@ def main():
     # 2) Immediately do an initial refresh (so we have tasks right away)
     refresh_vesting_schedules()
 
-    # 3) Also schedule a daily refresh at noon local time (12:00)
-    schedule.every().day.at("14:00").do(refresh_vesting_schedules)
+    # 3) Schedule a daily refresh at 2pm CET
+    schedule.every().day.at("14:00", "CET").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:
