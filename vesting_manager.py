@@ -162,7 +162,7 @@ def main():
     refresh_vesting_schedules()
 
     # 3) Also schedule a daily refresh at noon local time (12:00)
-    schedule.every().day.at("12:00").do(refresh_vesting_schedules)
+    schedule.every().day.at("14:00").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:
