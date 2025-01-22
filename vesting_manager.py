@@ -59,7 +59,7 @@ def execute_vest_for_asset(cfg: dict):
     """
     print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
-        if cfg["type"] == "native" and cfg["ecosystem"] == "evm":
+        if cfg["type"] == "native" and cfg["ecosystem"] == "evm" and cfg["value"] != "0":
             # Send native EVM token (e.g., BNB, ETH)
             transfer_native_gcp(
                 chain=cfg["chain"],
@@ -68,7 +68,7 @@ def execute_vest_for_asset(cfg: dict):
                 value=cfg["value"],
                 note=cfg["note"]
             )
-        elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm":
+        elif cfg["type"] == "erc20" and cfg["ecosystem"] == "evm" and cfg["value"] != "0":
             # Send ERC20 token (USDT, USDC, etc.)
             transfer_token_gcp(
                 chain=cfg["chain"],
@@ -78,16 +78,12 @@ def execute_vest_for_asset(cfg: dict):
                 amount=cfg["value"],
                 note=cfg["note"]
             )
+        elif cfg["value"] == "0":
+            # If the vesting amount is zero, print so
+            print(f"❌ Vesting amount for {cfg["asset"]} in Firebase is 0!")
+
         else:
-            # Fallback or other ecosystems
-            transfer_token_gcp(
-                chain=cfg["chain"],
-                token_ticker=cfg["asset"].lower(),
-                vault_id=cfg["vault_id"],
-                destination=cfg["destination"],
-                amount=cfg["value"],
-                note=cfg["note"]
-            )
+            raise ValueError(f"Unsupported configuration: type={cfg['type']}, ecosystem={cfg['ecosystem']}")
 
         print(f"✅ {cfg['asset']} vesting completed successfully.")
     except Exception as e:
@@ -165,8 +161,8 @@ def main():
     # 2) Immediately do an initial refresh (so we have tasks right away)
     refresh_vesting_schedules()
 
-    # 3) Also schedule a daily refresh at midnight (00:00)
-    schedule.every().day.at("00:00").do(refresh_vesting_schedules)
+    # 3) Also schedule a daily refresh at noon local time (12:00)
+    schedule.every().day.at("12:00").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:
