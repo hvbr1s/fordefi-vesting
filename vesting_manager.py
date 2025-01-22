@@ -80,7 +80,7 @@ def execute_vest_for_asset(cfg: dict):
             )
         elif cfg["value"] == "0":
             # If the vesting amount is zero, print so
-            print(f"❌ Vesting amount for {cfg["asset"]} in Firebase is 0!")
+            print(f"❌ Vesting amount in Firebase is 0!")
 
         else:
             raise ValueError(f"Unsupported configuration: type={cfg['type']}, ecosystem={cfg['ecosystem']}")
