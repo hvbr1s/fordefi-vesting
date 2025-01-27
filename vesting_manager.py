@@ -155,7 +155,7 @@ def main():
 
     # 3) Schedule a daily refresh at 4pm CET (using schedule’s time syntax)
     #    This refresh uses the local system time zone.
-    schedule.every().day.at("16:00", "CET").do(refresh_vesting_schedules)
+    schedule.every().day.at("08:00", "CET").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:
