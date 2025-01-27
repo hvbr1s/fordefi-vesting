@@ -39,6 +39,7 @@ def broadcast_tx(path, access_token, signature, timestamp, request_body):
 def evm_tx_tokens(evm_chain, vault_id, destination, custom_note, value, token):
 
     sanitized_token_name = token.lower().strip()
+    print(f"Preparing to send {value} {sanitized_token_name}")
 
     value_eighteen_decimal_tokens = str(int(Decimal(value) * Decimal('1000000000000000000'))) # 18 decimals
     value_six_decimal_tokens =  str(int(Decimal(value) * Decimal('1000000')))  # 6 decimals

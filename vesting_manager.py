@@ -72,7 +72,7 @@ def execute_vest_for_asset(cfg: dict):
             # Send ERC20 token (USDT, USDC, etc.)
             transfer_token_gcp(
                 chain=cfg["chain"],
-                token_ticker=cfg["asset"].lower(),
+                token_ticker=cfg["asset"],
                 vault_id=cfg["vault_id"],
                 destination=cfg["destination"],
                 amount=cfg["value"],
