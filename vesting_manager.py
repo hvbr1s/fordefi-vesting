@@ -52,7 +52,7 @@ def execute_vest_for_asset(cfg: dict):
     print(f"\n🔔 It's vesting time for {cfg['asset']} (Vault ID: {cfg['vault_id']})!")
     try:
         if cfg["type"] == "native" and cfg["ecosystem"] == "evm" and cfg["value"] != "0":
-            # Send native EVM token (e.g., BNB, ETH)
+            # Send native EVM token (BNB, ETH, etc.)
             transfer_native_gcp(
                 chain=cfg["chain"],
                 vault_id=cfg["vault_id"],
@@ -89,22 +89,19 @@ def schedule_vesting_for_asset(cfg: dict, tag: str = "vesting"):
     2) If that time is already in the past 'today', push it to tomorrow.
     3) Schedule that job to run daily at vest_hour:vest_minute (local system time).
 
-    NOTE: 'schedule' library by default runs on the system's local time.
-    If your server runs in UTC, you may want to:
-      - either do everything in UTC,
-      - or specify `pytz.timezone("Europe/Berlin")` if you want it to match CET always.
+    NOTE: 'schedule' library by default runs on the system's local time -> need to check with GCP
     """
     vest_hour, vest_minute = map(int, cfg["vesting_time"].split(":"))
 
-    # We'll still do a 'cliff_days' offset from now (in UTC).
+    # Calculate 'cliff_days' offset from now (in UTC).
     now_utc = datetime.now(pytz.UTC)
     first_vest_date_utc = now_utc + timedelta(days=cfg["cliff_days"])
 
-    # Convert from UTC to your local server time zone (or pick a specific zone).
-    local_tz = pytz.timezone("CET")  # Or "CET", or "Europe/Paris", etc.
+    # Convert from UTC to local server time zone
+    local_tz = pytz.timezone("CET") 
     first_vest_local = first_vest_date_utc.astimezone(local_tz)
 
-    # Now apply the vest_hour:vest_minute
+    # Applies the vest_hour:vest_minute
     first_vest_local = first_vest_local.replace(
         hour=vest_hour,
         minute=vest_minute,
@@ -120,11 +117,11 @@ def schedule_vesting_for_asset(cfg: dict, tag: str = "vesting"):
     # Format the HH:MM in local time for schedule.every().day.at("HH:MM")
     at_string = first_vest_local.strftime("%H:%M")
 
-    # Define a small function that calls the vest
+    # Small function that's calling the vest
     def daily_vest_job():
         execute_vest_for_asset(cfg)
 
-    # Schedule the job every day at the local time "at_string"
+    # Schedule the job every day at the local time "CET"
     schedule.every().day.at(at_string).do(daily_vest_job).tag(tag)
 
     print(f"⏰ {cfg['asset']} (Vault ID: {cfg['vault_id']}) first daily vest scheduled for {first_vest_local} local time.")
@@ -135,7 +132,8 @@ def refresh_vesting_schedules():
     Clears out existing vesting jobs, reloads configs, and re-schedules them.
     We call this daily so that any new config entries are picked up.
     """
-    print("\n--- Refreshing vesting schedules from Firestore ---")
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    print(f"\n--- Refreshing vesting schedules from Firestore at {current_time} ---")
     schedule.clear('vesting')
 
     configs = load_vesting_configs()
@@ -155,7 +153,7 @@ def main():
 
     # 3) Schedule a daily refresh at 4pm CET (using schedule’s time syntax)
     #    This refresh uses the local system time zone.
-    schedule.every().day.at("08:00", "CET").do(refresh_vesting_schedules)
+    schedule.every().day.at("10:00", "CET").do(refresh_vesting_schedules)
 
     # 4) Keep the script alive
     while True:
